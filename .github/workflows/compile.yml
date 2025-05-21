@@ -4,8 +4,10 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read      # pobieranie kodu i artefaktów
-  actions: write      # publikowanie artefaktów
+  contents: read
+  actions: write
+  id-token: write
+  checks: write
 
 jobs:
   build:
