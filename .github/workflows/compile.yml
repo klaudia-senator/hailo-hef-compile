@@ -3,6 +3,10 @@ name: Build HEF with Hailo
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read      # pobieranie kodu i artefaktów
+  actions: write      # publikowanie artefaktów
+
 jobs:
   build:
     runs-on: ubuntu-22.04
