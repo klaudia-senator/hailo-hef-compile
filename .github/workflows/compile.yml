@@ -4,47 +4,58 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-hef:
+  build:
     runs-on: ubuntu-22.04
 
     steps:
+      # 1) checkout repo
       - uses: actions/checkout@v4
 
-      # 1) Logowanie do GHCR
-      - name: Log in to GitHub Container Registry
+      # 2) log in to GHCR
+      - name: Log in to GHCR
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
           username: klaudia-senator
           password: ${{ secrets.GHCR_TOKEN }}
 
-      # 2) Pull obrazu TAP-PAS
-      - name: Pull Hailo TAP-PAS image
+      # 3) pull TAP-PAS image
+      - name: Pull Hailo TAP-PAS
         run: |
           docker pull ghcr.io/klaudia-senator/hailo-tappas:v3.31.0
 
-      # 3) Uruchomienie kompilacji w kontenerze
-      - name: Compile ONNX to HEF
+      # 4) download model & wheel from Release
+      - name: Download ONNX and DFC wheel
+        run: |
+          mkdir -p models calib_images
+          wget -qO models/model_unet.onnx \
+            https://github.com/klaudia-senator/hailo-hef-compile/releases/download/v3.31.0/model_unet.onnx
+          wget -qO models/dfc.whl \
+            https://github.com/klaudia-senator/hailo-hef-compile/releases/download/v3.31.0/hailo_dataflow_compiler-3.31.0-py3-none-linux_x86_64.whl
+          # kalibracyjne obrazy już masz w repo pod calib_images/
+
+      # 5) compile inside container
+      - name: Compile HEF
         run: |
           docker run --rm \
             -v ${{ github.workspace }}/models:/local/workspace/models \
             -v ${{ github.workspace }}/calib_images:/local/workspace/calib_images \
             ghcr.io/klaudia-senator/hailo-tappas:v3.31.0 \
             bash -lc "
-              pip install /local/workspace/models/hailo_dataflow_compiler-3.31.0-py3-none-linux_x86_64.whl &&
+              pip install /local/workspace/models/dfc.whl &&
               git clone https://github.com/hailo-ai/hailo_model_zoo.git &&
               cd hailo_model_zoo && pip install -e . &&
               hailomz compile \
                 --ckpt /local/workspace/models/model_unet.onnx \
                 --hw-arch hailo8l \
                 --calib-path /local/workspace/calib_images \
-                --classes 80 \
+                --classes 6 \
                 --performance
             "
 
-      # 4) Upload gotowego HEF
+      # 6) upload-artifact v2
       - name: Upload HEF artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v2
         with:
           name: hef-artifact
           path: models/model_unet.hef
